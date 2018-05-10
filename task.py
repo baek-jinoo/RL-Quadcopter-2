@@ -1,5 +1,6 @@
 import numpy as np
 from physics_sim import PhysicsSim
+from collections import deque
 
 class Task():
     """Task (environment) that defines the goal and provides feedback to the agent."""
@@ -22,6 +23,8 @@ class Task():
         self.action_low = 0
         self.action_high = 900
         self.action_size = 4
+        
+        self.tmp_scores = deque()
 
         # Goal
         self.target_pos = target_pos if target_pos is not None else np.array([0., 0., 10.]) 
