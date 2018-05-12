@@ -2,7 +2,7 @@ import numpy as np
 from physics_sim import PhysicsSim
 from collections import deque
 
-class TaskHover():
+class HoverTask():
     """Task (environment) that defines the goal and provides feedback to the agent."""
     def __init__(self, init_pose=None, init_velocities=None, 
         init_angle_velocities=None, runtime=5., target_state=None):
@@ -54,3 +54,4 @@ class TaskHover():
         self.sim.reset()
         state = np.concatenate([self.get_current_state()] * self.action_repeat)
         return state
+
