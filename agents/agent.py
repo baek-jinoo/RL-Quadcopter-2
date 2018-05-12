@@ -1,6 +1,7 @@
 from agents.replay_buffer import ReplayBuffer
 import numpy as np
 from agents.actor import Actor
+from agents.critic import Critic
 from agents.noise import OUNoise
 
 class DDPG():
