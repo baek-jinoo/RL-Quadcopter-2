@@ -1,3 +1,8 @@
+from replay_buffer import ReplayBuffer
+import numpy as np
+from actor import Actor
+from noise import OUNoise
+
 class DDPG():
     """Reinforcement Learning agent that learns using DDPG."""
     def __init__(self, task):
@@ -82,7 +87,7 @@ class DDPG():
 
         # Soft-update target models
         self.soft_update(self.critic_local.model, self.critic_target.model)
-        self.soft_update(self.actor_local.model, self.actor_target.model)   
+        self.soft_update(self.actor_local.model, self.actor_target.model)
 
     def soft_update(self, local_model, target_model):
         """Soft update model parameters."""
