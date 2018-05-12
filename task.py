@@ -28,7 +28,7 @@ class Task():
 
         # Goal
         self.target_pos = target_pos if target_pos is not None else np.array([0., 0., 10.]) 
-
+        
     def get_reward(self):
         """Uses current pose of sim to return reward."""
         reward = 1.-.3*(abs(self.sim.pose[:3] - self.target_pos)).sum()
@@ -54,7 +54,7 @@ class Task():
 class TaskHover():
     """Task (environment) that defines the goal and provides feedback to the agent."""
     def __init__(self, init_pose=None, init_velocities=None, 
-        init_angle_velocities=None, runtime=5., target_pos=None):
+        init_angle_velocities=None, runtime=5., target_state=None):
         """Initialize a Task object.
         Params
         ======
@@ -62,7 +62,9 @@ class TaskHover():
             init_velocities: initial velocity of the quadcopter in (x,y,z) dimensions
             init_angle_velocities: initial radians/second for each of the three Euler angles
             runtime: time limit for each episode
-            target_pos: target/goal (x,y,z) position for the agent
+            target_state: target/goal (x,y,z, 'phi', 'theta', 'psi', 'x_velocity',
+            'y_velocity', 'z_velocity', 'phi_velocity', 'theta_velocity',
+            'psi_velocity') state for the agent
         """
         # Simulation
         self.sim = PhysicsSim(init_pose, init_velocities, init_angle_velocities, runtime) 
@@ -75,11 +77,14 @@ class TaskHover():
         self.action_size = 4
 
         # Goal
-        self.target_pos = target_pos if target_pos is not None else np.array([0., 0., 10.]) 
+        self.target_state = target_state if target_state is not None else np.array([0., 0., 10., 0., 0., 0., 0., 0., 0., 0., 0., 0.]) 
 
+    def get_current_state(self):
+        return np.array(list(task.sim.pose) + list(task.sim.v) + list(task.sim.angular_v))
+        
     def get_reward(self):
         """Uses current pose of sim to return reward."""
-        reward = 1.-.3*(abs(self.sim.pose[:3] - self.target_pos)).sum()
+        reward = 1.-.3*(abs(self.get_current_state() - self.target_state)).sum()
         return reward
 
     def step(self, rotor_speeds):
