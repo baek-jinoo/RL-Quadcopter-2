@@ -21,25 +21,28 @@ class HoverTask():
         self.sim = PhysicsSim(init_pose, init_velocities, init_angle_velocities, runtime)
         self.action_repeat = 3
 
-        self.single_state_size = 12
+        self.single_state_size = 16
         self.state_size = self.action_repeat * self.single_state_size
         self.action_low = 0
         self.action_high = 900
         self.action_size = 4
+        self.actions = [0, 0, 0, 0]
 
         # Goal
-        self.target_state = target_state if target_state is not None else np.array([0., 0., 10., 0., 0., 0., 0., 0., 0., 0., 0., 0.])
+        self.target_state = target_state if target_state is not None else np.array([0., 0., 10.])
 
     def get_current_state(self):
-        return np.array(list(self.sim.pose) + list(self.sim.v) + list(self.sim.angular_v))
+        return np.array(list(self.sim.pose) + list(self.sim.v) + list(self.sim.angular_v) + list(self.actions))
 
     def get_reward(self):
         """Uses current pose of sim to return reward."""
-        reward = 1.-.3*(abs(self.get_current_state() - self.target_state)).sum()
+        current_state_for_reward = np.array(list(self.sim.pose)[:3])
+        reward = 1.-.3*(abs(current_state_for_reward - self.target_state)).sum()
         return reward
 
     def step(self, rotor_speeds):
         """Uses action to obtain next state, reward, done."""
+        self.actions = rotor_speeds
         reward = 0
         state_all = []
         for _ in range(self.action_repeat):
@@ -52,6 +55,7 @@ class HoverTask():
     def reset(self):
         """Reset the sim to start a new episode."""
         self.sim.reset()
+        self.actions = [0, 0, 0, 0]
         state = np.concatenate([self.get_current_state()] * self.action_repeat)
         return state
 
