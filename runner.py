@@ -1,125 +1,151 @@
 import sys
+import os
+import time
 import numpy as np
 import csv
-
 import matplotlib.pyplot as plt
-plt.rcParams['figure.dpi'] = 150
+#plt.rcParams['figure.dpi'] = 150
 
+class Runner():
+    def __init__(self,
+                 task,
+                 agent):
+        self.task = task
+        self.agent = agent
+        self.labels = ['time', 'x', 'y', 'z', 'phi', 'theta', 'psi', 'x_velocity',
+                       'y_velocity', 'z_velocity', 'phi_velocity', 'theta_velocity',
+                       'psi_velocity', 'rotor_speed1', 'rotor_speed2', 'rotor_speed3', 'rotor_speed4', 'reward', 'episode']
+        self.labels_per_episode = ['episode', 'mean_reward']
 
-def setup_figures_for_dynamic_plots():
-    fig1, (ax11, ax12, ax_x, ax_rotors) = plt.subplots(4, 1)
+    def run(runtime=100,
+            display_graph=True,
+            display_freq=5,
+            should_write=False,
+            experiences_to_mimic=None,
+            results_file_output='data',
+            episodic_results_file_output='episodic_data',
+            num_episode=10):
 
-    ax11.set_title("Rewards")
-    ax12.set_title("Average rewards")
-    ax_x.set_title("x, y, z")
-    ax_rotors.set_title("rotor speeds")
+        self._setup_figures_for_dynamic_plots()
 
-    fig1.tight_layout(pad=4.0, w_pad=1.0, h_pad=0.1)
-    fig1.set_size_inches(4, 8)
-    fig1.show()
+        results = {x : [] for x in self.labels}
+        episode_results = {x: [] for x in self.labels_per_episode}
 
-def plt_dynamic_reward(rewards):
-    ax11.plot(rewards)
-    fig1.canvas.draw()
+        max_time_steps = int(runtime)
 
-def plt_dynamic_reward_means(reward_means):
-    ax12.plot(reward_means)
-    fig1.canvas.draw()
+        if experiences_to_mimic not None and hasattr(self.agent, "mimic"):
+            self.agent.mimic(experiences_to_mimic)
 
-def plt_dynamic_x_y_z(results_per_episode):
-    ax_x.clear()
-    ax_x.plot(results_per_episode['time'], results_per_episode['x'], label='x', color='green')
-    ax_x.plot(results_per_episode['time'], results_per_episode['y'], label='y', color='red')
-    ax_x.plot(results_per_episode['time'], results_per_episode['z'], label='z', color='blue')
-    fig1.canvas.draw()
+        done = False
 
-def plt_dynamic_rotors(results_per_episode):
-    ax_rotors.clear()
-    ax_rotors.plot(results_per_episode['time'], results_per_episode['rotor_speed1'], label='1', color='green')
-    ax_rotors.plot(results_per_episode['time'], results_per_episode['rotor_speed2'], label='2', color='red')
-    ax_rotors.plot(results_per_episode['time'], results_per_episode['rotor_speed3'], label='3', color='blue')
-    ax_rotors.plot(results_per_episode['time'], results_per_episode['rotor_speed4'], label='4', color='magenta')
-    fig1.canvas.draw()
+        self._mv_to_file_with_date(file_output)
+        self._mv_to_file_with_date(episodic_results_file_output)
 
+        with open(file_output, 'w') as csvfile,
+            open(episodic_results_file_output, 'w') as episodic_csvfile:
+            writer = csv.writer(csvfile)
+            episode_writer = csv.writer(episodic_csvfile)
+            writer.writerow(self.labels)
+            episode_writer.writerow(self.labels_per_episode)
+            for i_episode in range(1, num_episode + 1):
+                state = self.agent.reset_episode()
+                self.task.reset()
+                episode_rewards = []
+                results_per_episode = {x : [] for x in self.labels}
+                for i, t in enumerate(range(max_time_steps)):
+                    rotor_speeds = self.agent.act(state)
+                    next_state, reward, done = self.task.step(rotor_speeds)
+                    self.agent.step(rotor_speeds, reward, next_state, done)
 
-# Modify the values below to give the quadcopter a different starting position.
-#runtime = 100.                                     # time limit of the episode
-#init_pose = np.array([0., 0., 0., 0., 0., 0.])  # initial pose
-#init_velocities = np.array([0., 0., 0.])         # initial velocities
-#init_angle_velocities = np.array([0., 0., 0.])   # initial angle velocities
-#file_output = 'data.txt'                         # file name for saved results
-#    
-#num_episode = 800
-#
-## general configuration
-#display_graph = True
-#display_freq = 5
-#
-#task = HoverTask(init_pose, init_velocities, init_angle_velocities, runtime)
-#agent = DDPG(task)
+                    step_results = [self.task.sim.time] + list(self.task.sim.pose) + list(self.task.sim.v) + list(self.task.sim.angular_v) + list(rotor_speeds)
+                    step_results.append(reward)
+                    step_results.append(i_episode)
+                    for ii in range(len(self.labels)):
+                        results[self.labels[ii]].append(step_results[ii])
+                        results_per_episode[self.labels[ii]].append(step_results[ii])
+                    self._write(step_results, writer, should_write)
 
-def write(labels, step_results, results):
-    for ii in range(len(labels)):
-        results[labels[ii]].append(step_results[ii])
-    if should_write:
-        writer.writerow(step_results)
+                    episode_rewards.append(reward)
 
-def runner(task,
-           agent,
-           runtime=100,
-           display_graph=True,
-           display_freq=5,
-           should_write=False):
-    done = False
+                    state = next_state
 
-    labels = ['time', 'x', 'y', 'z', 'phi', 'theta', 'psi', 'x_velocity',
-              'y_velocity', 'z_velocity', 'phi_velocity', 'theta_velocity',
-              'psi_velocity', 'rotor_speed1', 'rotor_speed2', 'rotor_speed3', 'rotor_speed4', 'reward', 'episode']
-    results = {x : [] for x in labels}
-    labels_per_episode = ['episode', 'mean_reward']
-    results_per_episode = {x: [] for x in labels_per_episode}
-    rewards = []
-    reward_means = []
+                    if done or i == max_time_steps-1:
+                        episode_step_result = [i_episode, np.mean(episode_rewards)]
+                        for ii in range(len(self.labels_per_episode)):
+                            episode_results[self.labels_per_episode[ii]].append(episode_step_result[ii])
+                        self._write(episode_step_result, episode_writer, should_write)
+                        if display_graph:
+                            self._plt_dynamic_reward(results)
+                            self._plt_dynamic_reward_means(episode_results)
+                            self._plt_dynamic_x_y_z(results_per_episode)
+                            self._plt_dynamic_rotors(results_per_episode)
+                        break
+                    else:
+                        if t % display_freq == 0 and display_graph:
+                            self._plt_dynamic_reward(results)
 
-    max_time_steps = int(runtime)
+        self._mv_to_file_with_date(file_output)
+        self._mv_to_file_with_date(episodic_results_file_output)
 
-    # experiences_to_mimic = create_mimic_experiences()
-    agent.mimic(experiences_to_mimic)
+    def _mv_to_file_with_date(filename):
+        cwd = os.getcwd()
+        destination_directory = cwd + '/data_outputs'
 
-    with open(file_output, 'w') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(labels)
-        for i_episode in range(1, num_episode + 1):
-            state = agent.reset_episode()
-            task.reset()
-            episode_rewards = []
-            results_per_episode = {x : [] for x in labels}
-            for i, t in enumerate(range(max_time_steps)):
-                rotor_speeds = agent.act(state)
-                next_state, reward, done = task.step(rotor_speeds)
-                agent.step(rotor_speeds, reward, next_state, done)
+        if not os.path.exists(destination_directory):
+            os.makedirs(destination_directory)
 
-                step_results = [task.sim.time] + list(task.sim.pose) + list(task.sim.v) + list(task.sim.angular_v) + list(rotor_speeds)
-                step_results.append(reward)
-                step_results.append(i_episode)
-                for ii in range(len(labels)):
-                    results[labels[ii]].append(step_results[ii])
-                if should_write:
-                    writer.writerow(step_results)
+        timestr = time.strftime("%Y%m%d-%H%M%S")
+        destination_filename = filename + '-' + timestr
 
-                rewards.append(reward)
-                episode_rewards.append(reward)
+        origin_file_path = os.path.join(cwd, filename)
 
-                state = next_state
+        if os.path.isfile(origin_file_path):
+            destination_file_path = os.path.join(destination_directory, destination_filename)
+            shutil.move(origin_file_path,
+                        destination_file_path)
 
-                if done or i == max_time_steps-1:
-                    if display_graph:
-                        plt_dynamic_reward(rewards)
-                        reward_means.append(np.mean(episode_rewards))
-                        plt_dynamic_x_y_z(results_per_episode)
-                        plt_dynamic_reward_means(reward_means)
-                        plt_dynamic_rotors(results_per_episode)
-                    break
-                else:
-                    if t % display_freq == 0:
-                        plt_dynamic_reward(rewards)
+    def _setup_figures_for_dynamic_plots():
+        fig1, (ax11, ax12, ax_x, ax_rotors) = plt.subplots(4, 1)
+
+        ax11.set_title("Rewards")
+        ax12.set_title("Average rewards")
+        ax_x.set_title("x, y, z")
+        ax_rotors.set_title("rotor speeds")
+
+        fig1.tight_layout(pad=4.0, w_pad=1.0, h_pad=0.1)
+        fig1.set_size_inches(4, 8)
+        fig1.show()
+
+        self.fig1 = fig1
+        self.ax_rotors = ax_rotors
+        self.ax_x = ax_x
+        self.ax11 = ax11
+        self.ax12 = ax12
+
+    def _plt_dynamic_reward(results):
+        self.ax11.plot(results['time'], results['reward'])
+        self.fig1.canvas.draw()
+
+    def _plt_dynamic_reward_means(episode_results):
+        self.ax12.plot(episode_results['episode'], episode_results['mean_reward'])
+        self.fig1.canvas.draw()
+
+    def _plt_dynamic_x_y_z(results_per_episode):
+        self.ax_x.clear()
+        self.ax_x.plot(results_per_episode['time'], results_per_episode['x'], label='x', color='green')
+        self.ax_x.plot(results_per_episode['time'], results_per_episode['y'], label='y', color='red')
+        self.ax_x.plot(results_per_episode['time'], results_per_episode['z'], label='z', color='blue')
+        self.fig1.canvas.draw()
+
+    def _plt_dynamic_rotors(results_per_episode):
+        self.ax_rotors.clear()
+        self.ax_rotors.plot(results_per_episode['time'], results_per_episode['rotor_speed1'], label='1', color='green')
+        self.ax_rotors.plot(results_per_episode['time'], results_per_episode['rotor_speed2'], label='2', color='red')
+        self.ax_rotors.plot(results_per_episode['time'], results_per_episode['rotor_speed3'], label='3', color='blue')
+        self.ax_rotors.plot(results_per_episode['time'], results_per_episode['rotor_speed4'], label='4', color='magenta')
+        self.fig1.canvas.draw()
+
+    def _write(step_results, writer, should_write=False):
+        if should_write:
+            writer.writerow(step_results)
+
