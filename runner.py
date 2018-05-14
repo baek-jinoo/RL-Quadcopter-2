@@ -26,6 +26,7 @@ class Runner():
             experiences_to_mimic=None,
             results_file_output='data',
             episodic_results_file_output='episodic_data',
+            outputs_folder='data_outputs',
             num_episode=10):
 
         self._setup_figures_for_dynamic_plots()
@@ -40,8 +41,8 @@ class Runner():
 
         done = False
 
-        self._mv_to_file_with_date(results_file_output)
-        self._mv_to_file_with_date(episodic_results_file_output)
+        self._mv_to_file_with_date(results_file_output, outputs_folder)
+        self._mv_to_file_with_date(episodic_results_file_output, outputs_folder)
 
         with open(results_file_output, 'w') as csvfile, open(episodic_results_file_output, 'w') as episodic_csvfile:
             writer = csv.writer(csvfile)
@@ -84,23 +85,23 @@ class Runner():
                     else:
                         if t % display_freq == 0 and display_graph:
                             self._plt_dynamic_reward(results)
-        self._mv_to_file_with_date(results_file_output)
-        self._mv_to_file_with_date(episodic_results_file_output)
+        self._mv_to_file_with_date(results_file_output, outputs_folder)
+        self._mv_to_file_with_date(episodic_results_file_output, outputs_folder)
 
-    def _mv_to_file_with_date(self, filename):
+    def _mv_to_file_with_date(self, filename, outputs_folder):
         cwd = os.getcwd()
         origin_file_path = os.path.join(cwd, filename)
 
         if not os.path.isfile(origin_file_path):
             return
 
-        destination_directory = cwd + '/data_outputs'
+        destination_directory = os.path.join(cwd, outputs_folder)
 
         if not os.path.exists(destination_directory):
             os.makedirs(destination_directory)
 
         timestr = time.strftime("%Y%m%d-%H%M%S")
-        destination_filename = timestr + '-' + filename
+        destination_filename = timestr + '-' + filename + '.csv'
         destination_file_path = os.path.join(destination_directory, destination_filename)
 
         shutil.move(origin_file_path,
