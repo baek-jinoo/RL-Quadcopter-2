@@ -1,5 +1,6 @@
 import sys
 import os
+import shutil
 import time
 import numpy as np
 import csv
@@ -17,7 +18,8 @@ class Runner():
                        'psi_velocity', 'rotor_speed1', 'rotor_speed2', 'rotor_speed3', 'rotor_speed4', 'reward', 'episode']
         self.labels_per_episode = ['episode', 'mean_reward']
 
-    def run(runtime=100,
+    def run(self,
+            runtime=100,
             display_graph=True,
             display_freq=5,
             should_write=False,
@@ -33,16 +35,15 @@ class Runner():
 
         max_time_steps = int(runtime)
 
-        if experiences_to_mimic not None and hasattr(self.agent, "mimic"):
+        if experiences_to_mimic is not None and hasattr(self.agent, "mimic"):
             self.agent.mimic(experiences_to_mimic)
 
         done = False
 
-        self._mv_to_file_with_date(file_output)
+        self._mv_to_file_with_date(results_file_output)
         self._mv_to_file_with_date(episodic_results_file_output)
 
-        with open(file_output, 'w') as csvfile,
-            open(episodic_results_file_output, 'w') as episodic_csvfile:
+        with open(results_file_output, 'w') as csvfile, open(episodic_results_file_output, 'w') as episodic_csvfile:
             writer = csv.writer(csvfile)
             episode_writer = csv.writer(episodic_csvfile)
             writer.writerow(self.labels)
@@ -83,28 +84,29 @@ class Runner():
                     else:
                         if t % display_freq == 0 and display_graph:
                             self._plt_dynamic_reward(results)
-
-        self._mv_to_file_with_date(file_output)
+        self._mv_to_file_with_date(results_file_output)
         self._mv_to_file_with_date(episodic_results_file_output)
 
-    def _mv_to_file_with_date(filename):
+    def _mv_to_file_with_date(self, filename):
         cwd = os.getcwd()
+        origin_file_path = os.path.join(cwd, filename)
+
+        if not os.path.isfile(origin_file_path):
+            return
+
         destination_directory = cwd + '/data_outputs'
 
         if not os.path.exists(destination_directory):
             os.makedirs(destination_directory)
 
         timestr = time.strftime("%Y%m%d-%H%M%S")
-        destination_filename = filename + '-' + timestr
+        destination_filename = timestr + '-' + filename
+        destination_file_path = os.path.join(destination_directory, destination_filename)
 
-        origin_file_path = os.path.join(cwd, filename)
+        shutil.move(origin_file_path,
+                    destination_file_path)
 
-        if os.path.isfile(origin_file_path):
-            destination_file_path = os.path.join(destination_directory, destination_filename)
-            shutil.move(origin_file_path,
-                        destination_file_path)
-
-    def _setup_figures_for_dynamic_plots():
+    def _setup_figures_for_dynamic_plots(self):
         fig1, (ax11, ax12, ax_x, ax_rotors) = plt.subplots(4, 1)
 
         ax11.set_title("Rewards")
@@ -122,22 +124,22 @@ class Runner():
         self.ax11 = ax11
         self.ax12 = ax12
 
-    def _plt_dynamic_reward(results):
-        self.ax11.plot(results['time'], results['reward'])
+    def _plt_dynamic_reward(self, results):
+        self.ax11.plot(results['reward'])
         self.fig1.canvas.draw()
 
-    def _plt_dynamic_reward_means(episode_results):
-        self.ax12.plot(episode_results['episode'], episode_results['mean_reward'])
+    def _plt_dynamic_reward_means(self, episode_results):
+        self.ax12.plot(episode_results['mean_reward'])
         self.fig1.canvas.draw()
 
-    def _plt_dynamic_x_y_z(results_per_episode):
+    def _plt_dynamic_x_y_z(self, results_per_episode):
         self.ax_x.clear()
         self.ax_x.plot(results_per_episode['time'], results_per_episode['x'], label='x', color='green')
         self.ax_x.plot(results_per_episode['time'], results_per_episode['y'], label='y', color='red')
         self.ax_x.plot(results_per_episode['time'], results_per_episode['z'], label='z', color='blue')
         self.fig1.canvas.draw()
 
-    def _plt_dynamic_rotors(results_per_episode):
+    def _plt_dynamic_rotors(self, results_per_episode):
         self.ax_rotors.clear()
         self.ax_rotors.plot(results_per_episode['time'], results_per_episode['rotor_speed1'], label='1', color='green')
         self.ax_rotors.plot(results_per_episode['time'], results_per_episode['rotor_speed2'], label='2', color='red')
@@ -145,7 +147,7 @@ class Runner():
         self.ax_rotors.plot(results_per_episode['time'], results_per_episode['rotor_speed4'], label='4', color='magenta')
         self.fig1.canvas.draw()
 
-    def _write(step_results, writer, should_write=False):
+    def _write(self, step_results, writer, should_write=False):
         if should_write:
             writer.writerow(step_results)
 
