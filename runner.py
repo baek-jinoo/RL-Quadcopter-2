@@ -12,9 +12,10 @@ class Runner():
                  agent):
         self.task = task
         self.agent = agent
-        self.labels = ['time', 'x', 'y', 'z', 'phi', 'theta', 'psi', 'x_velocity',
-                       'y_velocity', 'z_velocity', 'phi_velocity', 'theta_velocity',
-                       'psi_velocity', 'rotor_speed1', 'rotor_speed2', 'rotor_speed3', 'rotor_speed4', 'reward', 'episode']
+        #self.labels = ['time', 'x', 'y', 'z', 'phi', 'theta', 'psi', 'x_velocity',
+        #               'y_velocity', 'z_velocity', 'phi_velocity', 'theta_velocity',
+        #               'psi_velocity', 'rotor_speed1', 'rotor_speed2', 'rotor_speed3', 'rotor_speed4', 'reward', 'episode']
+        self.labels = ['time', 'x', 'y', 'reward', 'episode']
         self.labels_per_episode = ['episode', 'mean_reward']
 
     def run(self,
@@ -64,7 +65,8 @@ class Runner():
                     next_state, reward, done = self.task.step(rotor_speeds)
                     self.agent.step(rotor_speeds, reward, next_state, done)
 
-                    step_results = [self.task.sim.time] + list(self.task.sim.pose) + list(self.task.sim.v) + list(self.task.sim.angular_v) + list(rotor_speeds)
+                    #step_results = [self.task.sim.time] + list(self.task.sim.pose) + list(self.task.sim.v) + list(self.task.sim.angular_v) + list(rotor_speeds)
+                    step_results = [t] + list(next_state[-len(next_state)//self.task.action_repeat:])
                     step_results.append(reward)
                     step_results.append(i_episode)
                     for ii in range(len(self.labels)):
@@ -85,7 +87,7 @@ class Runner():
                             self._plt_dynamic_reward(results)
                             self._plt_dynamic_reward_means(episode_results)
                             self._plt_dynamic_x_y_z(results_per_episode)
-                            self._plt_dynamic_rotors(results_per_episode)
+                            #self._plt_dynamic_rotors(results_per_episode)
                         break
                     else:
                         if t % display_freq == 0 and display_graph:
@@ -153,7 +155,8 @@ class Runner():
         self.ax_x.clear()
         self.ax_x.plot(results_per_episode['time'], results_per_episode['x'], label='x', color='green')
         self.ax_x.plot(results_per_episode['time'], results_per_episode['y'], label='y', color='red')
-        self.ax_x.plot(results_per_episode['time'], results_per_episode['z'], label='z', color='blue')
+        if 'z' in results_per_episode:
+            self.ax_x.plot(results_per_episode['time'], results_per_episode['z'], label='z', color='blue')
         self.fig1.canvas.draw()
 
     def _plt_dynamic_rotors(self, results_per_episode):
