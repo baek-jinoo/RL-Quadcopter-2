@@ -1,11 +1,10 @@
 import sys
 import os
-import shutil
-import time
 import numpy as np
 import csv
 import matplotlib.pyplot as plt
-#plt.rcParams['figure.dpi'] = 150
+import keras
+from agents.helper import mv_file_to_dir_with_date
 
 class Runner():
     def __init__(self,
@@ -22,12 +21,15 @@ class Runner():
             runtime=100,
             display_graph=True,
             display_freq=5,
-            should_write=False,
+            should_write_results_to_file=False,
             experiences_to_mimic=None,
             results_file_output='data',
             episodic_results_file_output='episodic_data',
             outputs_folder='data_outputs',
-            num_episode=10):
+            num_episode=10,
+            weights_directory='weights_backup',
+            load_weights_from_file=False,
+            save_weights=False):
 
         self._setup_figures_for_dynamic_plots()
 
@@ -41,8 +43,11 @@ class Runner():
 
         done = False
 
-        self._mv_to_file_with_date(results_file_output, outputs_folder)
-        self._mv_to_file_with_date(episodic_results_file_output, outputs_folder)
+        if load_weights_from_file:
+            self.agent.load_weights(location=weights_directory)
+
+        self._mv_file_to_dir_with_date(results_file_output, outputs_folder)
+        self._mv_file_to_dir_with_date(episodic_results_file_output, outputs_folder)
 
         with open(results_file_output, 'w') as csvfile, open(episodic_results_file_output, 'w') as episodic_csvfile:
             writer = csv.writer(csvfile)
@@ -65,7 +70,7 @@ class Runner():
                     for ii in range(len(self.labels)):
                         results[self.labels[ii]].append(step_results[ii])
                         results_per_episode[self.labels[ii]].append(step_results[ii])
-                    self._write(step_results, writer, should_write)
+                    self._write(step_results, writer, should_write_results_to_file)
 
                     episode_rewards.append(reward)
 
@@ -75,7 +80,7 @@ class Runner():
                         episode_step_result = [i_episode, np.mean(episode_rewards)]
                         for ii in range(len(self.labels_per_episode)):
                             episode_results[self.labels_per_episode[ii]].append(episode_step_result[ii])
-                        self._write(episode_step_result, episode_writer, should_write)
+                        self._write(episode_step_result, episode_writer, should_write_results_to_file)
                         if display_graph:
                             self._plt_dynamic_reward(results)
                             self._plt_dynamic_reward_means(episode_results)
@@ -85,27 +90,38 @@ class Runner():
                     else:
                         if t % display_freq == 0 and display_graph:
                             self._plt_dynamic_reward(results)
-        self._mv_to_file_with_date(results_file_output, outputs_folder)
-        self._mv_to_file_with_date(episodic_results_file_output, outputs_folder)
+        self._mv_file_to_dir_with_date(results_file_output, outputs_folder)
+        self._mv_file_to_dir_with_date(episodic_results_file_output, outputs_folder)
 
-    def _mv_to_file_with_date(self, filename, outputs_folder):
+        if save_weights:
+            self.agent.save_weights(location=weights_directory)
+
+    def _mv_file_to_dir_with_date(self, filename, outputs_folder):
         cwd = os.getcwd()
         origin_file_path = os.path.join(cwd, filename)
 
-        if not os.path.isfile(origin_file_path):
-            return
+        destination_path = os.path.join(cwd, outputs_folder)
 
-        destination_directory = os.path.join(cwd, outputs_folder)
+        mv_file_to_dir_with_date(origin_file_path, destination_path)
 
-        if not os.path.exists(destination_directory):
-            os.makedirs(destination_directory)
+    #def _mv_to_file_with_date(self, filename, outputs_folder):
+    #    cwd = os.getcwd()
+    #    origin_file_path = os.path.join(cwd, filename)
 
-        timestr = time.strftime("%Y%m%d-%H%M%S")
-        destination_filename = timestr + '-' + filename + '.csv'
-        destination_file_path = os.path.join(destination_directory, destination_filename)
+    #    if not os.path.isfile(origin_file_path):
+    #        return
 
-        shutil.move(origin_file_path,
-                    destination_file_path)
+    #    destination_directory = os.path.join(cwd, outputs_folder)
+
+    #    if not os.path.exists(destination_directory):
+    #        os.makedirs(destination_directory)
+
+    #    timestr = time.strftime("%Y%m%d-%H%M%S")
+    #    destination_filename = timestr + '-' + filename + '.csv'
+    #    destination_file_path = os.path.join(destination_directory, destination_filename)
+
+    #    shutil.move(origin_file_path,
+    #                destination_file_path)
 
     def _setup_figures_for_dynamic_plots(self):
         fig1, (ax11, ax12, ax_x, ax_rotors) = plt.subplots(4, 1)
@@ -116,7 +132,7 @@ class Runner():
         ax_rotors.set_title("rotor speeds")
 
         fig1.tight_layout(pad=4.0, w_pad=1.0, h_pad=0.1)
-        fig1.set_size_inches(4, 8)
+        fig1.set_size_inches(4, 6)
         fig1.show()
 
         self.fig1 = fig1
@@ -148,7 +164,7 @@ class Runner():
         self.ax_rotors.plot(results_per_episode['time'], results_per_episode['rotor_speed4'], label='4', color='magenta')
         self.fig1.canvas.draw()
 
-    def _write(self, step_results, writer, should_write=False):
-        if should_write:
+    def _write(self, step_results, writer, should_write_results_to_file=False):
+        if should_write_results_to_file:
             writer.writerow(step_results)
 

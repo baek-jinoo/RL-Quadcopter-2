@@ -3,10 +3,19 @@ import numpy as np
 from agents.actor import Actor
 from agents.critic import Critic
 from agents.noise import OUNoise
+import h5py
+import os
+from agents.helper import mv_file_to_dir_with_date
+
+from keras.callbacks import TensorBoard
+import keras.callbacks as callbacks
+import tensorflow as tf
 
 class DDPG():
     """Reinforcement Learning agent that learns using DDPG."""
-    def __init__(self, task):
+    def __init__(self, task, verbose=False):
+        self.verbose = verbose
+
         self.task = task
         self.state_size = task.state_size
         self.action_size = task.action_size
@@ -20,6 +29,16 @@ class DDPG():
         # Critic (Value) Model
         self.critic_local = Critic(self.state_size, self.action_size)
         self.critic_target = Critic(self.state_size, self.action_size)
+
+        #log_path = '/tmp/logs'
+        #self.callback = callbacks.TensorBoard(log_dir=log_path, histogram_freq=1,
+        #                        write_images=False, write_grads=True, write_graph=False)
+        #self.callback.set_model(self.critic_local.model)
+
+        #log_path = '/tmp/logs'
+        #self.writer = tf.summary.FileWriter(log_path)
+
+        #self.learn_counter = 0
 
         # Initialize target model parameters with local model parameters
         self.critic_target.model.set_weights(self.critic_local.model.get_weights())
@@ -44,12 +63,11 @@ class DDPG():
         self.noise.reset()
         state = self.task.reset()
         self.last_state = state
+        #self.learn_counter = 0
         return state
 
     def mimic(self, experience_to_mimic):
         print("ready to mimic")
-        #for e in experience_to_mimic:
-        #    self.memory.add(e[0], e[1], e[2], e[3], e[4])
         self.memory.memory = experience_to_mimic
 
     def step(self, action, reward, next_state, done):
@@ -88,6 +106,37 @@ class DDPG():
         Q_targets = rewards + self.gamma * Q_targets_next * (1 - dones)
         self.critic_local.model.train_on_batch(x=[states, actions], y=Q_targets)
 
+        def save_grads(writer, model):
+            for layer in model.layers:
+                for weight in layer.weights:
+                    mapped_weight_name = weight.name.replace(':', '_')
+                    tf.summary.histogram(mapped_weight_name, weight)
+
+                    grads = model.optimizer.get_gradients(model.total_loss, weight)
+                    def is_indexed_slices(grad):
+                        return type(grad).__name__ == 'IndexedSlices'
+                    grads = [grad.values if is_indexed_slices(grad) else grad for grad in grads]
+                    tf.summary.histogram('{}_grad'.format(mapped_weight_name), grads)
+                    merged = tf.summary.merge_all()
+                    writer.flush()
+                    writer.close()
+
+        #save_grads(self.writer, self.critic_local.model)
+        #def write_log(callback, names, logs, batch_no):
+        #    for name, value in zip(names, logs):
+        #        summary = tf.Summary()
+        #        summary_value = summary.value.add()
+        #        summary_value.simple_value = value
+        #        summary_value.tag = name
+        #        callback.writer.add_summary(summary, batch_no)
+        #        callback.writer.flush()
+
+        #train_names = ['train_loss', 'train_mae']
+        #print("about to write log")
+        #write_log(self.callback, train_names, logs, self.learn_counter)
+        #trainable_weights = critic_local.model.trainable_weights
+        #gradients = critic_local.model.optimizer.get_gradients(critic_local.model.total_loss, trainable_weights)
+
         # Train actor model (local)
         action_gradients = np.reshape(self.critic_local.get_action_gradients([states, actions, 0]), (-1, self.action_size))
         self.actor_local.train_fn([states, action_gradients, 1])  # custom training function
@@ -95,6 +144,8 @@ class DDPG():
         # Soft-update target models
         self.soft_update(self.critic_local.model, self.critic_target.model)
         self.soft_update(self.actor_local.model, self.actor_target.model)
+
+        #self.learn_counter += 1
 
     def soft_update(self, local_model, target_model):
         """Soft update model parameters."""
@@ -105,3 +156,49 @@ class DDPG():
 
         new_weights = self.tau * local_weights + (1 - self.tau) * target_weights
         target_model.set_weights(new_weights)
+
+    def _save_weight(self, model, directory_name, file_name):
+        cwd = os.getcwd()
+        directory_path = os.path.join(cwd, directory_name)
+        if not os.path.exists(directory_path):
+            os.makedirs(directory_path)
+
+        file_path = os.path.join(directory_path, file_name)
+
+        mv_file_to_dir_with_date(file_path, directory_path)
+
+        model.save_weights(file_path)
+
+    def save_weights(self, location='weights_backup'):
+        if self.verbose:
+            print("start save_weights")
+
+        self._save_weight(self.critic_local.model, location, "critic_local.h5")
+        self._save_weight(self.critic_target.model, location, "critic_target.h5")
+        self._save_weight(self.actor_local.model, location, "actor_local.h5")
+        self._save_weight(self.actor_target.model, location, "actor_target.h5")
+
+        if self.verbose:
+            print("done save_weights")
+
+    def _h5(self, model, file_path):
+        if os.path.exists(file_path):
+            model.load_weights(file_path)
+        else:
+            print(f'could not find weight to load from [{file_path}]')
+
+    def load_weights(self, location='weights_backup'):
+        if self.verbose:
+            print("start load_weights")
+
+        cwd = os.getcwd()
+        directory_path = os.path.join(cwd, location)
+
+        self._h5(self.critic_local.model, os.path.join(directory_path, "critic_local.h5"))
+        self._h5(self.critic_target.model, os.path.join(directory_path, "critic_target.h5"))
+        self._h5(self.actor_local.model, os.path.join(directory_path, "actor_local.h5"))
+        self._h5(self.actor_target.model, os.path.join(directory_path, "actor_target.h5"))
+
+        if self.verbose:
+            print("done load_weights")
+
