@@ -12,10 +12,10 @@ class Runner():
                  agent):
         self.task = task
         self.agent = agent
-        #self.labels = ['time', 'x', 'y', 'z', 'phi', 'theta', 'psi', 'x_velocity',
-        #               'y_velocity', 'z_velocity', 'phi_velocity', 'theta_velocity',
-        #               'psi_velocity', 'rotor_speed1', 'rotor_speed2', 'rotor_speed3', 'rotor_speed4', 'reward', 'episode']
-        self.labels = ['time', 'x', 'y', 'reward', 'episode']
+        self.labels = ['time', 'x', 'y', 'z', 'phi', 'theta', 'psi', 'x_velocity',
+                       'y_velocity', 'z_velocity', 'phi_velocity', 'theta_velocity',
+                       'psi_velocity', 'rotor_speed1', 'rotor_speed2', 'rotor_speed3', 'rotor_speed4', 'reward', 'episode']
+        #self.labels = ['time', 'x', 'y', 'reward', 'episode'] # mountaincar
         self.labels_per_episode = ['episode', 'mean_reward']
 
     def run(self,
@@ -65,8 +65,8 @@ class Runner():
                     next_state, reward, done = self.task.step(rotor_speeds)
                     self.agent.step(rotor_speeds, reward, next_state, done)
 
-                    #step_results = [self.task.sim.time] + list(self.task.sim.pose) + list(self.task.sim.v) + list(self.task.sim.angular_v) + list(rotor_speeds)
-                    step_results = [t] + list(next_state[-len(next_state)//self.task.action_repeat:])
+                    step_results = [self.task.sim.time] + list(self.task.sim.pose) + list(self.task.sim.v) + list(self.task.sim.angular_v) + list(rotor_speeds)
+                    #step_results = [t] + list(next_state[-len(next_state)//self.task.action_repeat:]) # with mountaincar
                     step_results.append(reward)
                     step_results.append(i_episode)
                     for ii in range(len(self.labels)):
@@ -87,7 +87,7 @@ class Runner():
                             self._plt_dynamic_reward(results)
                             self._plt_dynamic_reward_means(episode_results)
                             self._plt_dynamic_x_y_z(results_per_episode)
-                            #self._plt_dynamic_rotors(results_per_episode)
+                            self._plt_dynamic_rotors(results_per_episode) # comment out for mountaincar
                         break
                     else:
                         if t % display_freq == 0 and display_graph:
@@ -105,25 +105,6 @@ class Runner():
         destination_path = os.path.join(cwd, outputs_folder)
 
         mv_file_to_dir_with_date(origin_file_path, destination_path)
-
-    #def _mv_to_file_with_date(self, filename, outputs_folder):
-    #    cwd = os.getcwd()
-    #    origin_file_path = os.path.join(cwd, filename)
-
-    #    if not os.path.isfile(origin_file_path):
-    #        return
-
-    #    destination_directory = os.path.join(cwd, outputs_folder)
-
-    #    if not os.path.exists(destination_directory):
-    #        os.makedirs(destination_directory)
-
-    #    timestr = time.strftime("%Y%m%d-%H%M%S")
-    #    destination_filename = timestr + '-' + filename + '.csv'
-    #    destination_file_path = os.path.join(destination_directory, destination_filename)
-
-    #    shutil.move(origin_file_path,
-    #                destination_file_path)
 
     def _setup_figures_for_dynamic_plots(self):
         fig1, (ax11, ax12, ax_x, ax_rotors) = plt.subplots(4, 1)
